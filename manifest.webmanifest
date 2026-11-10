@@ -1,0 +1,16 @@
+{
+  "name": "Cuaderno de Entrenos",
+  "short_name": "Entrenos",
+  "description": "Bici, carrera, trail y montaña sincronizado con Strava, con plan semanal y comidas.",
+  "lang": "es",
+  "start_url": "./?app=1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070a18",
+  "theme_color": "#1a1342",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
