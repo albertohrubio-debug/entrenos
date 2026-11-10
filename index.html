@@ -1,6 +1,14 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>*,*::before,*::after{box-sizing:border-box}body{margin:0}</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#142236">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Entrenos">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
 <script>window.MODO_LOCAL = true;</script>
 <script>/* Cuaderno de Entrenos · motor de análisis, planificación y FIT (versión navegador).
    Traducción de analysis.py, planificador.py y fit_workout.py. */
@@ -17,7 +25,7 @@ const DURACIONES = [1, 5, 10, 15, 30, 60, 120, 180, 300, 480, 600, 1200, 1800, 2
 const ALTITUDES = [1500, 2000, 2500, 3000, 3500, 4000, 4500];
 const VENTANAS_VERTICAL = [600, 1800, 3600];
 const TSS_HORA_DEFECTO = { bici: 50, carrera: 60, trail: 65, montana: 45, otros: 35 };
-const AJUSTES_DEFECTO = { ftp: 250, peso: 72.0, fc_max: 185, fc_reposo: 50, lthr: 168, ritmo_umbral: 270, ftp_carrera: 0, sexo: "H" };
+const AJUSTES_DEFECTO = { ftp: 250, peso: 72.0, fc_max: 185, fc_reposo: 50, lthr: 168, ritmo_umbral: 270, ftp_carrera: 0, sexo: "H", altura: 175, edad: 45, objetivo: "mantener" };
 
 function grupoDeporte(t) { for (const g in GRUPOS) if (GRUPOS[g].includes(t)) return g; return "otros"; }
 const r0 = (v, nd = 1) => (v == null || !isFinite(v)) ? null : Math.round(v * 10 ** nd) / 10 ** nd;
@@ -583,17 +591,199 @@ const Motor = { GRUPOS, DURACIONES, AJUSTES_DEFECTO, CONFIG_DEFECTO, DIAS, anali
 if (typeof module !== "undefined" && module.exports) module.exports = Motor; else raiz.Motor = Motor;
 })(typeof window !== "undefined" ? window : globalThis);
 </script>
+<script>/* Tabla de alimentos habituales (valores medios por 100 g de porción comestible).
+   Fuentes de referencia: tablas BEDCA y USDA. Valores orientativos.
+   [nombre, kcal, proteínas, hidratos, grasas, fibra, ración_g, ración_nombre, categoría] */
+(function (raiz) {
+const A = [
+// Cereales, pan y pasta
+["Pan blanco (barra)", 265, 8.5, 51, 1.6, 3.5, 60, "trozo de barra", "Cereales"],
+["Pan integral", 245, 9.5, 41, 3.4, 7, 60, "2 rebanadas", "Cereales"],
+["Pan de molde", 260, 8, 47, 4, 3, 30, "rebanada", "Cereales"],
+["Tostada (pan tostado)", 400, 11, 75, 5, 4.5, 15, "biscote", "Cereales"],
+["Arroz blanco cocido", 130, 2.7, 28, 0.3, 0.4, 200, "plato", "Cereales"],
+["Arroz integral cocido", 123, 2.7, 25.6, 1, 1.6, 200, "plato", "Cereales"],
+["Arroz crudo", 355, 7, 79, 0.6, 1.3, 80, "ración en crudo", "Cereales"],
+["Pasta cocida", 158, 5.8, 31, 0.9, 1.8, 200, "plato", "Cereales"],
+["Pasta cruda", 360, 12.5, 72, 1.5, 3, 80, "ración en crudo", "Cereales"],
+["Pasta integral cocida", 149, 6, 29, 1.7, 4, 200, "plato", "Cereales"],
+["Copos de avena", 375, 13.5, 59, 7, 10, 50, "ración", "Cereales"],
+["Muesli", 365, 9.7, 66, 6, 7.3, 50, "ración", "Cereales"],
+["Cereales de desayuno (tipo corn flakes)", 378, 7, 84, 0.9, 3, 40, "bol", "Cereales"],
+["Quinoa cocida", 120, 4.4, 21, 1.9, 2.8, 180, "ración", "Cereales"],
+["Cuscús cocido", 112, 3.8, 23, 0.2, 1.4, 180, "ración", "Cereales"],
+["Tortilla de trigo (wrap)", 310, 8, 51, 8, 3, 60, "unidad", "Cereales"],
+["Pizza (media)", 266, 11, 33, 10, 2.3, 120, "porción", "Cereales"],
+["Galletas tipo María", 440, 7, 74, 13, 2.5, 25, "4 galletas", "Cereales"],
+["Bollería (croissant)", 406, 8, 46, 21, 2.6, 60, "unidad", "Cereales"],
+["Magdalena", 420, 6, 52, 21, 1.2, 45, "unidad", "Cereales"],
+// Legumbres
+["Lentejas cocidas", 116, 9, 20, 0.4, 7.9, 250, "plato", "Legumbres"],
+["Garbanzos cocidos", 164, 8.9, 27, 2.6, 7.6, 250, "plato", "Legumbres"],
+["Alubias cocidas", 127, 8.7, 22.8, 0.5, 6.4, 250, "plato", "Legumbres"],
+["Hummus", 177, 7.9, 14.3, 9.6, 6, 50, "ración", "Legumbres"],
+["Guisantes cocidos", 84, 5.4, 15.6, 0.2, 5.5, 150, "ración", "Legumbres"],
+["Soja texturizada (seca)", 330, 50, 30, 1, 15, 40, "ración", "Legumbres"],
+["Tofu", 144, 15.7, 2.8, 8.7, 2.3, 125, "ración", "Legumbres"],
+// Carnes
+["Pechuga de pollo a la plancha", 165, 31, 0, 3.6, 0, 150, "filete", "Carnes"],
+["Muslo de pollo asado", 209, 26, 0, 10.9, 0, 150, "unidad", "Carnes"],
+["Pechuga de pavo", 135, 29, 0, 1.7, 0, 150, "filete", "Carnes"],
+["Ternera magra (filete)", 158, 26, 0, 6, 0, 150, "filete", "Carnes"],
+["Carne picada de ternera", 250, 26, 0, 15, 0, 125, "ración", "Carnes"],
+["Lomo de cerdo a la plancha", 190, 29, 0, 7.7, 0, 150, "filete", "Carnes"],
+["Solomillo de cerdo", 143, 26, 0, 3.5, 0, 150, "ración", "Carnes"],
+["Costillas de cerdo", 290, 24, 0, 21, 0, 200, "ración", "Carnes"],
+["Secreto ibérico", 370, 17, 0, 33, 0, 150, "ración", "Carnes"],
+["Cordero (chuletas)", 280, 25, 0, 20, 0, 150, "ración", "Carnes"],
+["Conejo", 136, 21, 0, 5.5, 0, 200, "ración", "Carnes"],
+["Hamburguesa de ternera", 254, 17, 3, 19, 0, 120, "unidad", "Carnes"],
+["Salchichas frescas", 290, 14, 2, 25, 0, 100, "2 unidades", "Carnes"],
+// Embutidos
+["Jamón serrano", 241, 31, 0, 13, 0, 40, "ración", "Embutidos"],
+["Jamón ibérico", 375, 34, 0, 27, 0, 40, "ración", "Embutidos"],
+["Jamón cocido / York", 110, 18, 1.5, 3.5, 0, 40, "2 lonchas", "Embutidos"],
+["Pechuga de pavo fiambre", 105, 19, 2, 2, 0, 40, "2 lonchas", "Embutidos"],
+["Chorizo", 455, 24, 2, 39, 0, 30, "ración", "Embutidos"],
+["Salchichón", 430, 26, 1, 36, 0, 30, "ración", "Embutidos"],
+["Lomo embuchado", 380, 50, 0, 20, 0, 30, "ración", "Embutidos"],
+["Mortadela", 311, 14, 2, 28, 0, 30, "2 lonchas", "Embutidos"],
+// Pescados y mariscos
+["Merluza", 86, 17, 0, 1.8, 0, 200, "ración", "Pescados"],
+["Bacalao fresco", 82, 18, 0, 0.7, 0, 200, "ración", "Pescados"],
+["Salmón", 208, 20, 0, 13, 0, 150, "ración", "Pescados"],
+["Atún fresco", 144, 23, 0, 5, 0, 150, "ración", "Pescados"],
+["Atún en lata al natural (escurrido)", 116, 26, 0, 1, 0, 60, "lata", "Pescados"],
+["Atún en aceite (escurrido)", 198, 29, 0, 8, 0, 60, "lata", "Pescados"],
+["Sardinas en lata", 208, 25, 0, 11.5, 0, 80, "lata", "Pescados"],
+["Caballa", 205, 19, 0, 14, 0, 150, "ración", "Pescados"],
+["Dorada / lubina", 100, 20, 0, 2.5, 0, 200, "ración", "Pescados"],
+["Gambas / langostinos", 99, 21, 0.9, 1.4, 0, 120, "ración", "Pescados"],
+["Mejillones", 86, 12, 3.7, 2.2, 0, 150, "ración", "Pescados"],
+["Calamares", 92, 16, 3, 1.4, 0, 150, "ración", "Pescados"],
+["Calamares a la romana", 220, 13, 15, 12, 0.5, 150, "ración", "Pescados"],
+// Huevos y lácteos
+["Huevo entero", 143, 12.6, 0.7, 9.5, 0, 60, "huevo grande", "Huevos y lácteos"],
+["Clara de huevo", 52, 11, 0.7, 0.2, 0, 33, "clara", "Huevos y lácteos"],
+["Tortilla de patatas", 175, 6.5, 13, 11, 1.2, 150, "pincho grande", "Huevos y lácteos"],
+["Huevo frito", 196, 13.6, 0.8, 15, 0, 65, "huevo", "Huevos y lácteos"],
+["Leche entera", 64, 3.2, 4.7, 3.6, 0, 250, "vaso", "Huevos y lácteos"],
+["Leche semidesnatada", 46, 3.3, 4.8, 1.6, 0, 250, "vaso", "Huevos y lácteos"],
+["Leche desnatada", 35, 3.4, 5, 0.1, 0, 250, "vaso", "Huevos y lácteos"],
+["Bebida de avena", 45, 0.8, 7, 1.5, 0.8, 250, "vaso", "Huevos y lácteos"],
+["Bebida de soja", 38, 3.3, 1, 2, 0.6, 250, "vaso", "Huevos y lácteos"],
+["Yogur natural", 61, 3.5, 4.7, 3.2, 0, 125, "unidad", "Huevos y lácteos"],
+["Yogur griego", 115, 6, 4, 8.5, 0, 125, "unidad", "Huevos y lácteos"],
+["Yogur proteico / skyr", 62, 10, 4, 0.2, 0, 150, "unidad", "Huevos y lácteos"],
+["Queso fresco / burgos", 175, 12, 3, 13, 0, 60, "ración", "Huevos y lácteos"],
+["Queso fresco batido 0%", 46, 8, 3.6, 0.1, 0, 125, "tarrina", "Huevos y lácteos"],
+["Requesón", 98, 11, 3.4, 4.3, 0, 100, "ración", "Huevos y lácteos"],
+["Queso curado / manchego", 420, 28, 0.5, 34, 0, 30, "3 cuñas", "Huevos y lácteos"],
+["Queso semicurado", 375, 25, 0.5, 30, 0, 30, "ración", "Huevos y lácteos"],
+["Mozzarella", 280, 22, 2.2, 20, 0, 60, "ración", "Huevos y lácteos"],
+["Queso en lonchas", 330, 22, 2, 26, 0, 20, "loncha", "Huevos y lácteos"],
+["Proteína whey (polvo)", 390, 78, 7, 6, 0, 30, "cacito", "Huevos y lácteos"],
+// Verduras
+["Ensalada verde (lechuga)", 15, 1.4, 2.2, 0.2, 1.3, 100, "ración", "Verduras"],
+["Tomate", 18, 0.9, 3.9, 0.2, 1.2, 150, "unidad", "Verduras"],
+["Pepino", 15, 0.7, 3.6, 0.1, 0.5, 100, "medio", "Verduras"],
+["Pimiento", 26, 1, 6, 0.3, 2.1, 120, "unidad", "Verduras"],
+["Cebolla", 40, 1.1, 9.3, 0.1, 1.7, 100, "unidad", "Verduras"],
+["Zanahoria", 41, 0.9, 9.6, 0.2, 2.8, 80, "unidad", "Verduras"],
+["Brócoli", 34, 2.8, 7, 0.4, 2.6, 200, "ración", "Verduras"],
+["Coliflor", 25, 1.9, 5, 0.3, 2, 200, "ración", "Verduras"],
+["Espinacas", 23, 2.9, 3.6, 0.4, 2.2, 200, "ración", "Verduras"],
+["Judías verdes", 31, 1.8, 7, 0.2, 2.7, 200, "ración", "Verduras"],
+["Calabacín", 17, 1.2, 3.1, 0.3, 1, 200, "ración", "Verduras"],
+["Berenjena", 25, 1, 6, 0.2, 3, 200, "ración", "Verduras"],
+["Champiñones", 22, 3.1, 3.3, 0.3, 1, 150, "ración", "Verduras"],
+["Espárragos", 20, 2.2, 3.9, 0.1, 2.1, 150, "ración", "Verduras"],
+["Alcachofas", 47, 3.3, 10.5, 0.2, 5.4, 150, "ración", "Verduras"],
+["Patata cocida", 87, 1.9, 20, 0.1, 1.8, 200, "ración", "Verduras"],
+["Patatas fritas (caseras)", 312, 3.4, 41, 15, 3.8, 150, "ración", "Verduras"],
+["Boniato asado", 90, 2, 20.7, 0.2, 3.3, 200, "unidad", "Verduras"],
+["Gazpacho", 40, 0.8, 4, 2.5, 0.8, 250, "vaso", "Verduras"],
+["Pisto", 75, 1.5, 7, 4.5, 2, 200, "ración", "Verduras"],
+["Aguacate", 160, 2, 8.5, 14.7, 6.7, 100, "medio", "Verduras"],
+["Aceitunas", 145, 1, 3.8, 15, 3.3, 30, "puñado", "Verduras"],
+// Frutas
+["Plátano", 89, 1.1, 22.8, 0.3, 2.6, 120, "unidad", "Frutas"],
+["Manzana", 52, 0.3, 13.8, 0.2, 2.4, 180, "unidad", "Frutas"],
+["Naranja", 47, 0.9, 11.8, 0.1, 2.4, 200, "unidad", "Frutas"],
+["Mandarina", 53, 0.8, 13.3, 0.3, 1.8, 80, "unidad", "Frutas"],
+["Pera", 57, 0.4, 15.2, 0.1, 3.1, 180, "unidad", "Frutas"],
+["Fresas", 32, 0.7, 7.7, 0.3, 2, 150, "ración", "Frutas"],
+["Uvas", 69, 0.7, 18, 0.2, 0.9, 150, "racimo", "Frutas"],
+["Melón", 34, 0.8, 8.2, 0.2, 0.9, 250, "tajada", "Frutas"],
+["Sandía", 30, 0.6, 7.6, 0.2, 0.4, 300, "tajada", "Frutas"],
+["Kiwi", 61, 1.1, 14.7, 0.5, 3, 75, "unidad", "Frutas"],
+["Melocotón", 39, 0.9, 9.5, 0.3, 1.5, 150, "unidad", "Frutas"],
+["Piña", 50, 0.5, 13, 0.1, 1.4, 150, "rodajas", "Frutas"],
+["Arándanos", 57, 0.7, 14.5, 0.3, 2.4, 100, "ración", "Frutas"],
+["Dátiles", 282, 2.5, 75, 0.4, 8, 30, "3 unidades", "Frutas"],
+["Pasas", 299, 3.1, 79, 0.5, 3.7, 30, "puñado", "Frutas"],
+["Zumo de naranja", 45, 0.7, 10.4, 0.2, 0.2, 200, "vaso", "Frutas"],
+// Frutos secos y grasas
+["Almendras", 579, 21, 21.6, 49.9, 12.5, 30, "puñado", "Frutos secos y grasas"],
+["Nueces", 654, 15, 13.7, 65, 6.7, 30, "puñado", "Frutos secos y grasas"],
+["Cacahuetes", 567, 25.8, 16, 49, 8.5, 30, "puñado", "Frutos secos y grasas"],
+["Crema de cacahuete", 588, 25, 20, 50, 6, 15, "cucharada", "Frutos secos y grasas"],
+["Pistachos", 560, 20, 28, 45, 10.6, 30, "puñado", "Frutos secos y grasas"],
+["Anacardos", 553, 18, 30, 44, 3.3, 30, "puñado", "Frutos secos y grasas"],
+["Semillas de chía", 486, 17, 42, 31, 34, 15, "cucharada", "Frutos secos y grasas"],
+["Aceite de oliva", 884, 0, 0, 100, 0, 10, "cucharada", "Frutos secos y grasas"],
+["Mantequilla", 717, 0.9, 0.1, 81, 0, 10, "porción", "Frutos secos y grasas"],
+["Mayonesa", 680, 1, 0.6, 75, 0, 15, "cucharada", "Frutos secos y grasas"],
+// Dulces, snacks y deporte
+["Chocolate negro 70%", 580, 7.8, 46, 41, 11, 20, "2 onzas", "Dulces y snacks"],
+["Chocolate con leche", 535, 7.6, 59, 30, 3.4, 20, "2 onzas", "Dulces y snacks"],
+["Cacao soluble", 380, 5, 80, 3, 6, 15, "cucharada", "Dulces y snacks"],
+["Miel", 304, 0.3, 82, 0, 0.2, 20, "cucharada", "Dulces y snacks"],
+["Mermelada", 250, 0.4, 62, 0.1, 1, 20, "cucharada", "Dulces y snacks"],
+["Azúcar", 400, 0, 100, 0, 0, 8, "sobre", "Dulces y snacks"],
+["Patatas fritas de bolsa", 536, 7, 53, 34, 4.4, 40, "bolsa pequeña", "Dulces y snacks"],
+["Helado", 207, 3.5, 24, 11, 0.7, 100, "bola doble", "Dulces y snacks"],
+["Barrita energética", 400, 6, 68, 10, 4, 40, "unidad", "Deporte"],
+["Barrita de proteínas", 370, 33, 35, 12, 6, 55, "unidad", "Deporte"],
+["Gel energético", 260, 0, 64, 0, 0, 40, "sobre", "Deporte"],
+["Bebida isotónica", 25, 0, 6, 0, 0, 500, "botella", "Deporte"],
+["Recuperador (batido)", 360, 25, 55, 4, 1, 50, "ración en polvo", "Deporte"],
+// Bebidas
+["Café solo", 2, 0.1, 0, 0, 0, 50, "taza", "Bebidas"],
+["Café con leche", 38, 2, 3, 2, 0, 200, "taza", "Bebidas"],
+["Refresco de cola", 42, 0, 10.6, 0, 0, 330, "lata", "Bebidas"],
+["Refresco zero", 0.3, 0, 0, 0, 0, 330, "lata", "Bebidas"],
+["Cerveza", 43, 0.5, 3.6, 0, 0, 330, "caña grande / tercio", "Bebidas"],
+["Cerveza sin alcohol", 25, 0.4, 5, 0, 0, 330, "tercio", "Bebidas"],
+["Vino tinto", 85, 0.1, 2.6, 0, 0, 150, "copa", "Bebidas"],
+// Platos
+["Paella de marisco", 160, 8, 22, 4, 0.8, 300, "plato", "Platos"],
+["Cocido madrileño (completo)", 140, 10, 10, 7, 3, 400, "plato", "Platos"],
+["Macarrones con tomate y carne", 165, 7, 22, 5.5, 1.5, 300, "plato", "Platos"],
+["Ensalada mixta con atún", 95, 7, 4, 6, 1.5, 300, "plato", "Platos"],
+["Lentejas con chorizo", 145, 8, 15, 6, 5, 300, "plato", "Platos"],
+["Croquetas", 250, 7, 22, 15, 1, 25, "unidad", "Platos"],
+["Bocadillo de jamón", 255, 13, 34, 7, 2.2, 180, "bocadillo", "Platos"],
+["Sándwich mixto", 280, 14, 26, 13, 1.5, 120, "unidad", "Platos"],
+["Pollo asado con patatas", 190, 14, 12, 9.5, 1.2, 350, "plato", "Platos"],
+["Huevos rotos con jamón", 230, 9, 18, 14, 2, 300, "plato", "Platos"],
+];
+const ALIMENTOS = A.map(([n, kcal, p, hc, g, f, rg, rn, cat], i) => ({ id: "b" + i, nombre: n, kcal, prot: p, hc, grasa: g, fibra: f, racion_g: rg, racion: rn, cat, fuente: "tabla" }));
+raiz.ALIMENTOS = ALIMENTOS;
+})(typeof window !== "undefined" ? window : self);
+</script>
 <script>/* Cuaderno de Entrenos · "servidor" dentro del navegador.
    Sustituye a app.py: guarda todo en IndexedDB, habla directamente con la API de
    Strava y responde a las mismas rutas /api/... que usa el panel. */
-(function () {
+(function (G) {
 "use strict";
-const M = window.Motor;
+const EN_PAGINA = typeof document !== "undefined";
+const M = G.Motor;
 const API = "https://www.strava.com/api/v3";
 const CLAVES = "time,distance,latlng,altitude,velocity_smooth,heartrate,cadence,watts,temp,moving,grade_smooth";
 const SYNC_MIN = 15;
 const localISO = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
-const ES_ARCHIVO = location.protocol === "file:";
+const ES_ARCHIVO = EN_PAGINA && location.protocol === "file:";
 const CAMPOS = ["id", "name", "sport_type", "type", "start_date", "start_date_local", "timezone", "distance", "moving_time", "elapsed_time",
   "total_elevation_gain", "elev_high", "elev_low", "average_speed", "max_speed", "average_heartrate", "max_heartrate", "average_watts", "max_watts",
   "weighted_average_watts", "kilojoules", "device_watts", "average_cadence", "trainer", "commute", "manual", "gear_id", "suffer_score", "start_latlng", "workout_type"];
@@ -603,8 +793,12 @@ let _db;
 function db() {
   if (_db) return _db;
   _db = new Promise((ok, mal) => {
-    const r = indexedDB.open("cuaderno-entrenos", 1);
-    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore("kv"); d.createObjectStore("acts", { keyPath: "id" }); d.createObjectStore("streams"); };
+    const r = indexedDB.open("cuaderno-entrenos", 2);
+    r.onupgradeneeded = ev => {
+      const d = r.result;
+      if (ev.oldVersion < 1) { d.createObjectStore("kv"); d.createObjectStore("acts", { keyPath: "id" }); d.createObjectStore("streams"); }
+      if (ev.oldVersion < 2) { const c = d.createObjectStore("comidas", { keyPath: "id", autoIncrement: true }); c.createIndex("fecha", "fecha"); }
+    };
     r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error);
   });
   return _db;
@@ -648,7 +842,7 @@ const item = a => ({ ...limpio(a.r), m: limpio(a.m || {}) });
 const paraPlan = L => L.map(a => ({ ...a.r, m: a.m || {} }));
 
 /* ------------------------------------------------------------ Strava */
-const redirectUri = () => ES_ARCHIVO ? "http://localhost/entrenos" : location.origin + location.pathname;
+const redirectUri = () => ES_ARCHIVO ? "http://localhost/entrenos" : (EN_PAGINA ? location.origin + location.pathname : "");
 async function urlAutorizacion() {
   const cfg = await kvGet("strava_app", {});
   return "https://www.strava.com/oauth/authorize?" + new URLSearchParams({
@@ -855,6 +1049,7 @@ async function estado() {
     sync: { ...E.sync, ultima: E.sync.ultima || await kvGet("ultima_sync") }, uso_api: await kvGet("uso_api"),
     ajustes: await ajustes(), recalculo: E.recalculo, redirect: redirectUri(),
     dominio: ES_ARCHIVO ? "localhost" : location.hostname, sitio: ES_ARCHIVO ? "http://localhost" : location.origin,
+    sync_auto: "al abrir la app y cada " + SYNC_MIN + " min mientras está abierta",
     modo_archivo: ES_ARCHIVO,
     red: { navegador: true, servidor: false, es_local: true },
     auto: { intervalo_min: SYNC_MIN, proxima: E.proxima, arranque_soportado: false, arranque_activo: false },
@@ -901,8 +1096,30 @@ async function rutear(ruta, opt = {}) {
     const l = M.lunesDe(M.hoyK()); await generarPlan(l); await generarPlan(M.sumaDias(l, 7));
     return { ok: true, cfg };
   }
+  if (p === "/api/comidas" && !post) {
+    const f = q.get("fecha") || M.hoyK();
+    return tx("comidas", "readonly", s => s.index("fecha").getAll(f));
+  }
+  if (p === "/api/comidas" && post) {
+    const e = { fecha: body.fecha || M.hoyK(), comida: body.comida || "otros", nombre: String(body.nombre || "Alimento"), gramos: +body.gramos || 0,
+      kcal: +body.kcal || 0, prot: +body.prot || 0, hc: +body.hc || 0, grasa: +body.grasa || 0, fibra: +body.fibra || 0,
+      ref: body.ref || null, creado: localISO() };
+    const id = await tx("comidas", "readwrite", s => s.add(e));
+    const rec = (await kvGet("comida_recientes", [])).filter(r => r.ref ? r.ref.id !== (e.ref || {}).id : r.nombre !== e.nombre);
+    if (e.ref) rec.unshift({ nombre: e.ref.nombre || e.nombre, gramos: e.gramos, ref: e.ref });
+    await kvPut("comida_recientes", rec.slice(0, 16));
+    return { ok: true, id };
+  }
+  if (p === "/api/comidas/borrar") { await tx("comidas", "readwrite", s => s.delete(+body.id)); return { ok: true }; }
+  if (p === "/api/comidas/recientes") return kvGet("comida_recientes", []);
+  if (p === "/api/comidas/rango") {
+    const desde = q.get("desde"), hasta = q.get("hasta");
+    return tx("comidas", "readonly", s => s.index("fecha").getAll(IDBKeyRange.bound(desde, hasta)));
+  }
   throw new Error("Ruta desconocida " + p);
 }
+G.EntrenosSync = async () => { if (await kvGet("token")) { await sincronizar(); return true; } return false; };
+if (!EN_PAGINA) return;   // en el service worker solo hace falta la sincronización
 window.API_LOCAL = async (ruta, opt) => rutear(ruta, opt);
 
 /* Enlaces que en la versión con servidor eran descargas o redirecciones */
@@ -944,8 +1161,28 @@ E.version = 0;
   };
   ciclo();
   setInterval(ciclo, SYNC_MIN * 60000);
+  // Al volver a la app (desde otra app o con la pantalla apagada) se pone al día si ha pasado más de media hora
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState !== "visible") return;
+    const u = E.sync.ultima || await kvGet("ultima_sync");
+    if (!u || Date.now() - new Date(u).getTime() > 30 * 60000) ciclo();
+  });
+  // Android (app instalada): sincronización diaria en segundo plano
+  try {
+    if ("serviceWorker" in navigator && location.protocol === "https:") {
+      const reg = await navigator.serviceWorker.ready;
+      if ("periodicSync" in reg) {
+        const st = await navigator.permissions.query({ name: "periodic-background-sync" }).catch(() => ({ state: "denied" }));
+        if (st.state === "granted") await reg.periodicSync.register("strava-diaria", { minInterval: 24 * 3600 * 1000 });
+      }
+    }
+  } catch (_) { }
 })();
-})();
+})(typeof window !== "undefined" ? window : self);
+</script>
+<script>
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); window.__instalar = e; document.dispatchEvent(new Event("instalable")); });
 </script>
 </head><body><title>Cuaderno de Entrenos</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -956,38 +1193,42 @@ E.version = 0;
 <style>
 /* Layout: cabecera-paisaje (montañas generadas) + barra de pestañas fija de cristal; tarjetas translúcidas sobre un fondo de curvas de nivel */
 :root{
-  --bg:#e9eff4; --surface:#ffffff; --surface-2:#f2f6f9; --ink:#122033; --muted:#566578; --line:#d2dce6;
-  --accent:#0a7184; --accent-ink:#ffffff; --glow:#e8613c;
-  --bici:#2f6fd6; --carrera:#e0672a; --trail:#2e9e5b; --montana:#8a55c9; --otros:#8a96a3;
-  --bien:#2e9e5b; --aviso:#c98a00; --mal:#d64545;
-  --ctl:#2f6fd6; --atl:#d64545; --tsb:#c98a00;
-  --sky1:#7fa9d4; --sky2:#e9c2a6; --sky3:#fbe3cc; --sol:#fff4dc;
-  --far:#9db4cc; --near:#142236; --nieve:#ffffff; --topo:#c3d1dd;
-  --glass:rgba(255,255,255,.86);
+  --bg:#f1f3fb; --surface:#ffffff; --surface-2:#f3f4fb; --ink:#0f1530; --muted:#5a6182; --line:#e0e3f0;
+  --accent:#6d28d9; --accent-ink:#ffffff; --glow:#ff5c39;
+  --bici:#2f6bff; --carrera:#ff7a00; --trail:#00b86b; --montana:#c03bff; --otros:#8a93ad;
+  --bien:#00a862; --aviso:#e69500; --mal:#ff3b5c;
+  --ctl:#2f6bff; --atl:#ff3b5c; --tsb:#e69500;
+  --prot:#ff3d8b; --hc:#ffb000; --grasa:#00b8d9; --fibra:#22c55e;
+  --sky1:#4f7dff; --sky2:#ff9ec4; --sky3:#ffd29a; --sol:#fff3d6;
+  --far:#9b9ee8; --near:#1a1342; --nieve:#ffffff; --topo:#d7dcef;
+  --glass:rgba(255,255,255,.9);
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:14px; --sombra:0 1px 2px rgba(18,32,51,.06),0 8px 24px -12px rgba(18,32,51,.18);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0a1019; --surface:#121b26; --surface-2:#18232f; --ink:#e6edf4; --muted:#93a3b4; --line:#253242;
-  --accent:#40bccd; --accent-ink:#04232a; --glow:#ff8a5b;
-  --bici:#5b93f0; --carrera:#f08a52; --trail:#4cc07c; --montana:#ad82e6; --otros:#8d9aa7;
-  --bien:#4cc07c; --aviso:#e3ad2b; --mal:#f06b6b; --ctl:#5b93f0; --atl:#f06b6b; --tsb:#e3ad2b;
-  --sky1:#040a15; --sky2:#13223f; --sky3:#3d2f5e; --sol:#e9eefc;
-  --far:#34486a; --near:#060b14; --nieve:#c4d2e8; --topo:#1d2938;
-  --glass:rgba(18,27,38,.82); --sombra:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+  --bg:#070a18; --surface:#10142a; --surface-2:#171c38; --ink:#eef0ff; --muted:#9aa1c4; --line:#262c52;
+  --accent:#a78bfa; --accent-ink:#160b33; --glow:#ff7a59;
+  --bici:#5b8cff; --carrera:#ff9a3c; --trail:#2ee6a0; --montana:#d77bff; --otros:#98a0bf;
+  --bien:#2ee6a0; --aviso:#ffc53d; --mal:#ff5c7a; --ctl:#5b8cff; --atl:#ff5c7a; --tsb:#ffc53d;
+  --prot:#ff5ca8; --hc:#ffc53d; --grasa:#34d6f5; --fibra:#4ade80;
+  --sky1:#03051a; --sky2:#2a1a6e; --sky3:#c2417a; --sol:#f1ecff;
+  --far:#3d3a8f; --near:#050412; --nieve:#c4d2e8; --topo:#1a2046;
+  --glass:rgba(16,20,42,.86); --sombra:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
   color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0a1019; --surface:#121b26; --surface-2:#18232f; --ink:#e6edf4; --muted:#93a3b4; --line:#253242;
-  --accent:#40bccd; --accent-ink:#04232a; --glow:#ff8a5b;
-  --bici:#5b93f0; --carrera:#f08a52; --trail:#4cc07c; --montana:#ad82e6; --otros:#8d9aa7;
-  --bien:#4cc07c; --aviso:#e3ad2b; --mal:#f06b6b; --ctl:#5b93f0; --atl:#f06b6b; --tsb:#e3ad2b;
-  --sky1:#040a15; --sky2:#13223f; --sky3:#3d2f5e; --sol:#e9eefc;
-  --far:#34486a; --near:#060b14; --nieve:#c4d2e8; --topo:#1d2938;
-  --glass:rgba(18,27,38,.82); --sombra:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+  --bg:#070a18; --surface:#10142a; --surface-2:#171c38; --ink:#eef0ff; --muted:#9aa1c4; --line:#262c52;
+  --accent:#a78bfa; --accent-ink:#160b33; --glow:#ff7a59;
+  --bici:#5b8cff; --carrera:#ff9a3c; --trail:#2ee6a0; --montana:#d77bff; --otros:#98a0bf;
+  --bien:#2ee6a0; --aviso:#ffc53d; --mal:#ff5c7a; --ctl:#5b8cff; --atl:#ff5c7a; --tsb:#ffc53d;
+  --prot:#ff5ca8; --hc:#ffc53d; --grasa:#34d6f5; --fibra:#4ade80;
+  --sky1:#03051a; --sky2:#2a1a6e; --sky3:#c2417a; --sol:#f1ecff;
+  --far:#3d3a8f; --near:#050412; --nieve:#c4d2e8; --topo:#1a2046;
+  --glass:rgba(16,20,42,.86); --sombra:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
   color-scheme:dark}
 html,body{background:var(--bg);color:var(--ink)}
+body{background:radial-gradient(60vw 60vw at 0% 10%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 70%),radial-gradient(50vw 50vw at 100% 45%,color-mix(in srgb,var(--glow) 12%,transparent),transparent 70%),radial-gradient(50vw 50vw at 30% 100%,color-mix(in srgb,var(--trail) 10%,transparent),transparent 70%),var(--bg);background-attachment:fixed}
 body{margin:0;font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -1008,6 +1249,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .hero canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .hero-in{position:relative;min-height:inherit;display:flex;flex-direction:column;justify-content:space-between;gap:56px;padding-block:14px 22px}
 @media (max-width:640px){.hero-in{gap:70px}.kpi .v{font-size:1.9rem}.hchip{font-size:.75rem;padding:4px 10px}.hchip b{font-size:1rem}}
+.hchip.instalar{cursor:pointer;font:inherit;font-size:.82rem;color:#fff;background:linear-gradient(135deg,var(--accent),var(--glow));border:0}
 .hero-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .marca-min{font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.14em;font-size:.95rem;color:var(--near);background:rgba(255,255,255,.72);padding:4px 10px;border-radius:999px;backdrop-filter:blur(6px)}
 .marca-min small{font-family:var(--f-body);font-weight:500;letter-spacing:0;text-transform:none;opacity:.75;margin-left:8px;font-size:.8rem}
@@ -1158,6 +1400,78 @@ tbody tr.clic:hover{background:var(--surface-2)}
 .campo-h{display:flex;align-items:center;gap:4px;color:var(--muted)}
 @media (max-width:520px){.sesion{grid-template-columns:40px 1fr;gap:10px;padding:12px}.ses-dia .dnum{font-size:1.5rem}}
 
+
+/* ===== Estilo vivo ===== */
+.panel{border-radius:20px;border-color:color-mix(in srgb,var(--line) 70%,transparent)}
+.kpis{background:transparent;border:0;gap:12px;box-shadow:none;overflow:visible;backdrop-filter:none}
+.kpi{border-radius:20px;color:#fff;box-shadow:0 14px 30px -16px color-mix(in srgb,var(--k1) 70%,transparent);background:linear-gradient(135deg,var(--k1),var(--k2));position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;right:-30px;bottom:-40px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12)}
+.kpi:nth-child(5n+1){--k1:#6d28d9;--k2:#2f6bff}
+.kpi:nth-child(5n+2){--k1:#ff3b5c;--k2:#ff8a00}
+.kpi:nth-child(5n+3){--k1:#00a86b;--k2:#00b8d9}
+.kpi:nth-child(5n+4){--k1:#c03bff;--k2:#ff3d8b}
+.kpi:nth-child(5n+5){--k1:#f59e0b;--k2:#ff5c39}
+.kpi .et,.kpi .d,.kpi .v small{color:rgba(255,255,255,.88)}
+.kpi .v{color:#fff}
+.kpi .pill{color:#fff!important;border-color:rgba(255,255,255,.75);background:rgba(255,255,255,.16)}
+nav.tabs{gap:6px;padding-block:8px}
+nav.tabs a{padding:8px 16px;border-radius:999px;font-size:1rem}
+nav.tabs a::after{display:none}
+nav.tabs a[aria-current="page"]{color:#fff;background:linear-gradient(135deg,var(--accent),var(--glow));box-shadow:0 8px 18px -10px var(--accent)}
+.seg{border-radius:999px}
+.seg button[aria-pressed="true"]{background:linear-gradient(135deg,var(--accent),var(--glow));color:#fff}
+.btn{border-radius:12px}
+.chip::before{border-radius:50%}
+.sesion{border-radius:20px}
+.zona .barra{height:16px;border-radius:999px}
+.zona .barra i{border-radius:999px}
+.aviso{border-radius:16px;border-style:solid;border-color:color-mix(in srgb,var(--aviso) 50%,transparent);background:linear-gradient(135deg,color-mix(in srgb,var(--aviso) 14%,var(--surface)),var(--glass))}
+
+/* ===== Comidas ===== */
+.nutri{display:grid;grid-template-columns:minmax(200px,260px) 1fr;gap:24px;align-items:center}
+@media (max-width:640px){.nutri{grid-template-columns:1fr}}
+.anillo{position:relative;width:100%;max-width:240px;aspect-ratio:1;margin:0 auto}
+.anillo svg{width:100%;height:100%;transform:rotate(-90deg)}
+.anillo .centro{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.anillo .centro b{font-family:var(--f-display);font-size:2.6rem;line-height:1}
+.anillo .centro span{font-size:.82rem;color:var(--muted)}
+.macros{display:grid;gap:14px}
+.macro{display:grid;gap:6px}
+.macro .fila{display:flex;justify-content:space-between;align-items:baseline;font-size:.9rem}
+.macro .fila b{font-family:var(--f-display);font-size:1.25rem}
+.macro .barra{height:12px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.macro .barra i{display:block;height:100%;border-radius:999px;background:var(--c)}
+.gasto{display:flex;gap:10px;flex-wrap:wrap}
+.gasto .hchip{background:var(--surface-2);color:var(--ink);border-color:var(--line);backdrop-filter:none}
+.gasto .hchip b{color:var(--ink)}
+.comida{display:grid;gap:8px}
+.comida > header{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.comida h4{margin:0;font-family:var(--f-display);font-size:1.3rem;text-transform:uppercase;letter-spacing:.05em}
+.item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--surface-2)}
+.item .n{min-width:0}
+.item .n b{display:block;font-weight:600;overflow-wrap:anywhere}
+.item .n span{font-size:.78rem;color:var(--muted)}
+.item .k{font-family:var(--f-display);font-size:1.2rem;font-weight:600}
+.borrar{border:0;background:transparent;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:4px 8px;border-radius:8px}
+.borrar:hover{color:var(--mal);background:color-mix(in srgb,var(--mal) 12%,transparent)}
+.mini-macros{display:flex;gap:8px;flex-wrap:wrap;font-size:.75rem}
+.mini-macros i{font-style:normal;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--ink)}
+.hoja{position:fixed;inset:0;z-index:50;background:rgba(5,8,20,.55);display:grid;align-items:end;justify-items:center;padding-top:env(safe-area-inset-top,0px)}
+.hoja > div{background:var(--surface);width:min(640px,100%);max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:14px;box-shadow:0 -20px 50px -20px rgba(0,0,0,.5)}
+@media (min-width:700px){.hoja{align-items:center}.hoja > div{border-radius:24px}}
+.hoja header{display:flex;justify-content:space-between;align-items:center}
+.resultados{display:grid;gap:6px}
+.resultado{display:grid;grid-template-columns:1fr auto;gap:8px;text-align:left;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:10px 12px;cursor:pointer;font:inherit;color:inherit}
+.resultado:hover{border-color:var(--accent)}
+.resultado span{font-size:.78rem;color:var(--muted)}
+.chips-r{display:flex;gap:6px;flex-wrap:wrap}
+.chip-r{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:6px 12px;cursor:pointer;font:inherit;font-size:.85rem;color:inherit}
+.chip-r[aria-pressed="true"]{background:linear-gradient(135deg,var(--accent),var(--glow));color:#fff;border-color:transparent}
+.preview{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center}
+.preview div{border-radius:12px;padding:8px 4px;background:color-mix(in srgb,var(--c) 14%,var(--surface))}
+.preview b{display:block;font-family:var(--f-display);font-size:1.3rem}
+.preview span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
 /* Leaflet (estilos mínimos en línea) */
 .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
 .leaflet-container{overflow:hidden;-webkit-tap-highlight-color:transparent;font:12px/1.4 var(--f-body);outline-offset:1px;touch-action:none}
@@ -1207,6 +1521,7 @@ tbody tr.clic:hover{background:var(--surface-2)}
     <nav class="tabs" id="tabs" aria-label="Secciones">
       <a href="#resumen">Resumen</a>
       <a href="#plan">Plan</a>
+      <a href="#comidas" id="tab-comidas" hidden>Comidas</a>
       <a href="#actividades">Actividades</a>
       <a href="#potencia">Potencia</a>
       <a href="#carrera">Carrera y trail</a>
@@ -1221,6 +1536,7 @@ tbody tr.clic:hover{background:var(--surface-2)}
   <div id="banner"></div>
   <section class="vista" id="v-resumen"></section>
   <section class="vista" id="v-plan" hidden></section>
+  <section class="vista" id="v-comidas" hidden></section>
   <section class="vista" id="v-actividades" hidden></section>
   <section class="vista" id="v-potencia" hidden></section>
   <section class="vista" id="v-carrera" hidden></section>
@@ -1481,12 +1797,12 @@ async function cargarLocal() {
     S.estado = await api("/api/estado");
     const d = await api("/api/datos");
     if (d.actividades.length) setDatos(d.actividades, d.ajustes, false);
-    else { usarDemo(); S.ajustes = d.ajustes; }
+    else setDatos([], d.ajustes, false);
     pintarSync();
     if (!S.estado.conectado && !location.hash) location.hash = "#ajustes";
   } catch (e) {
     $("#txt-sync").textContent = "No se puede contactar con el servidor local";
-    usarDemo();
+    setDatos([], S.ajustes, false);
   }
   let antes = S.estado?.sync?.activo, prog = -1, tic = 0;
   setInterval(async () => {
@@ -1578,7 +1894,11 @@ function pintarSync() {
 }
 function pintarBanner() {
   const b = $("#banner");
-  if (!S.demo) { b.innerHTML = ""; return; }
+  if (!S.demo && (S.acts.length || MODO !== "local")) { b.innerHTML = ""; return; }
+  if (!S.demo) {
+    b.innerHTML = `<div class="aviso" style="margin-bottom:20px"><b>Aún no hay actividades.</b><span>Conecta tu cuenta de Strava en Ajustes y aquí aparecerán todos tus entrenos.</span><a class="btn" href="#ajustes">Ir a Ajustes</a></div>`;
+    return;
+  }
   b.innerHTML = `<div class="aviso" style="margin-bottom:20px"><b>Datos de ejemplo.</b><span>${MODO === "local"
     ? "Conecta tu cuenta de Strava en Ajustes y la app descargará todas tus actividades."
     : "Exporta tus datos desde la app local e impórtalos en Ajustes para ver tus entrenos aquí."}</span><a class="btn" href="#ajustes">Ir a Ajustes</a></div>`;
@@ -1610,6 +1930,7 @@ const ESCENAS = {
   carrera: { seed: 8, picos: .6, nieve: false, capas: 5 }, montana: { seed: 41, picos: 1.35, nieve: true, capas: 5 },
   mapa: { seed: 3, picos: .85, nieve: true, capas: 4 }, ajustes: { seed: 17, picos: .75, nieve: false, capas: 4 },
   detalle: { seed: 61, picos: 1, nieve: true, capas: 4 },
+  comidas: { seed: 77, picos: .7, nieve: false, capas: 5 },
 };
 function dibujarPaisaje(cv, esc, perfil) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1715,7 +2036,6 @@ function dibujarTopo() {
   const W = Math.min(1600, Math.max(800, innerWidth)), H = Math.min(1100, Math.max(700, innerHeight));
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const c = cv.getContext("2d"), r = aleat(97);
-  c.fillStyle = tok("--bg"); c.fillRect(0, 0, W, H);
   const cerros = Array.from({ length: 9 }, () => ({ x: r() * W, y: r() * H, s: 120 + r() * 260, h: .5 + r() }));
   const f = (x, y) => cerros.reduce((a, k) => a + k.h * Math.exp(-((x - k.x) ** 2 + (y - k.y) ** 2) / (2 * k.s * k.s)), 0) + .15 * Math.sin(x / 210) * Math.cos(y / 170);
   const P = 8, cols = Math.ceil(W / P) + 1, filas = Math.ceil(H / P) + 1, val = new Float32Array(cols * filas);
@@ -1759,6 +2079,7 @@ function heroTexto(v) {
     case "montana": { const M = delAnio.filter(a => grupo(a) === "montana");
       return { ...base, eb: "Alpinismo y travesía", t: "Montaña", chips: hchip(n0(delAnio.reduce((s, a) => s + desn(a), 0)), `m+ en ${anio}`) + hchip(n0(M.length), "salidas de montaña") + (top ? hchip(n0(top.m.alt_max) + " m", "cota máxima") : "") }; }
     case "mapa": return { ...base, eb: "Por dónde has pasado", t: "Mapa de rutas", chips: hchip(n0(A.filter(a => a.poly || a.s?.ruta).length), "rutas"), cumbre: null };
+    case "comidas": return { ...base, eb: "Nutrición", t: "Comidas", chips: S.nutriHoy ? hchip(n0(S.nutriHoy.kcal), "kcal hoy") + hchip(n0(S.nutriHoy.prot) + " g", "proteína") : "", cumbre: null };
     case "ajustes": return { ...base, eb: MODO === "local" ? "Strava, umbrales y plan" : "Importar datos", t: "Ajustes", chips: "", cumbre: null };
   }
   return base;
@@ -1782,7 +2103,7 @@ function redibujarHero() {
 let _rz; window.addEventListener("resize", () => { clearTimeout(_rz); _rz = setTimeout(redibujarHero, 120); });
 
 /* ------------------------------------------------------------ navegación */
-const VISTAS = ["resumen", "plan", "actividades", "potencia", "carrera", "montana", "mapa", "ajustes"];
+const VISTAS = ["resumen", "plan", "comidas", "actividades", "potencia", "carrera", "montana", "mapa", "ajustes"];
 function mostrar() {
   const h = (location.hash || "#resumen").slice(1);
   let v = VISTAS.includes(h) ? h : "resumen", det = null;
@@ -1797,7 +2118,7 @@ function pintarVista(v, forzar) {
   if (!forzar && S.pintado[v] === S.ver) { Object.values(S.mapas).forEach(m => m.invalidateSize && m.invalidateSize()); return; }
   S.pintado[v] = S.ver;
   baseChart();
-  ({ resumen: vResumen, plan: vPlan, actividades: vActividades, potencia: vPotencia, carrera: vCarrera, montana: vMontana, mapa: vMapa, ajustes: vAjustes })[v]();
+  ({ resumen: vResumen, plan: vPlan, comidas: vComidas, actividades: vActividades, potencia: vPotencia, carrera: vCarrera, montana: vMontana, mapa: vMapa, ajustes: vAjustes })[v]();
 }
 function repintar() { S.ver++; dibujarTopo(); mostrar(); }
 window.addEventListener("hashchange", () => { mostrar(); window.scrollTo(0, 0); });
@@ -2341,6 +2662,7 @@ function tarjetaSesion(s, abierta) {
 }
 async function pintarHoy() {
   const el = $("#hoy-toca"); if (!el) return;
+  if (!S.acts.length && !S.demo) { el.innerHTML = ""; return; }
   const p = await planDe(lunesHoy());
   const s = p && p.sesiones.find(x => x.fecha === hoyKey());
   if (!s || !$("#hoy-toca")) { el.innerHTML = ""; return; }
@@ -2350,6 +2672,10 @@ async function vPlan() {
   const el = $("#v-plan");
   S.planLunes = S.planLunes || lunesHoy();
   const l = S.planLunes;
+  if (!S.acts.length && !S.demo) {
+    el.innerHTML = `<div class="panel"><header><h3>Plan semanal</h3></header><p class="vacio">Tu plan se genera a partir de tus entrenos. Conecta Strava en <a href="#ajustes">Ajustes</a> y en cuanto se descarguen tus actividades aparecerá aquí.</p></div>`;
+    return;
+  }
   el.innerHTML = `<div class="panel"><p class="vacio">Preparando el plan…</p></div>`;
   const p = await planDe(l);
   if (S.planLunes !== l) return;
@@ -2394,23 +2720,216 @@ async function vPlan() {
   $("#pl-hoy")?.addEventListener("click", () => ir(lunesHoy()));
 }
 
+/* ------------------------------------------------------------ COMIDAS */
+const COMIDAS = [["desayuno", "Desayuno"], ["almuerzo", "Media mañana"], ["comida", "Comida"], ["merienda", "Merienda"], ["cena", "Cena"], ["otros", "Otros"]];
+const MET = { bici: 7, carrera: 10, trail: 9, montana: 6.5, otros: 5 };
+const sinAcentos = t => (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+function objetivosDia(fecha) {
+  const aj = S.ajustes || {}, peso = +aj.peso || 72, alt = +aj.altura || 175, edad = +aj.edad || 45;
+  const bmr = 10 * peso + 6.25 * alt - 5 * edad + (aj.sexo === "M" ? -161 : 5);
+  const base = bmr * 1.35;
+  const ents = S.acts.filter(a => dia(a.start_date_local) === fecha);
+  let ejer = 0;
+  for (const a of ents) ejer += a.m?.kj ? a.m.kj : (MET[grupo(a)] || 5) * peso * (a.moving_time || 0) / 3600;
+  const f = aj.objetivo === "perder" ? 0.85 : aj.objetivo === "ganar" ? 1.1 : 1;
+  const kcal = (base + ejer) * f;
+  const prot = peso * (aj.objetivo === "perder" ? 2.0 : 1.8), grasa = peso * 1.0;
+  return { bmr, base, ejer, kcal, prot, grasa, hc: Math.max(0, (kcal - prot * 4 - grasa * 9) / 4), fibra: 30, ents };
+}
+const sumaN = (L, k) => L.reduce((s, e) => s + (+e[k] || 0), 0);
+function anilloSVG(v, obj) {
+  const r = 52, c = 2 * Math.PI * r, f = Math.min(1, obj ? v / obj : 0), pasa = obj && v > obj * 1.05;
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="gradk" x1="0" x2="1"><stop offset="0" stop-color="${tok("--accent")}"/><stop offset="1" stop-color="${tok(pasa ? "--mal" : "--glow")}"/></linearGradient></defs>
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="${tok("--surface-2")}" stroke-width="12"/>
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="url(#gradk)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+}
+async function vComidas() {
+  const el = $("#v-comidas");
+  S.comFecha = S.comFecha || hoyKey();
+  const f = S.comFecha;
+  let items = [];
+  try { items = await api("/api/comidas?fecha=" + f); } catch (_) { }
+  if (S.vista !== "comidas") return;
+  const o = objetivosDia(f);
+  const t = { kcal: sumaN(items, "kcal"), prot: sumaN(items, "prot"), hc: sumaN(items, "hc"), grasa: sumaN(items, "grasa"), fibra: sumaN(items, "fibra") };
+  if (f === hoyKey()) { S.nutriHoy = t; pintarHero("comidas"); }
+  const quedan = o.kcal - t.kcal;
+  const macro = (et, k, c) => `<div class="macro" style="--c:var(${c})"><div class="fila"><span>${et}</span><span><b>${n0(t[k])}</b> / ${n0(o[k])} g</span></div><div class="barra"><i style="width:${Math.min(100, o[k] ? t[k] / o[k] * 100 : 0).toFixed(1)}%"></i></div></div>`;
+  const etFecha = f === hoyKey() ? "Hoy" : fechaD(f + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+  el.innerHTML = `
+  <div class="panel"><header><h3>${etFecha}</h3><div class="filtros"><button class="btn" id="cf-ant" type="button" aria-label="Día anterior">‹</button>${f !== hoyKey() ? `<button class="btn" id="cf-hoy" type="button">Hoy</button>` : ""}<button class="btn" id="cf-sig" type="button" aria-label="Día siguiente" ${f >= hoyKey() ? "disabled" : ""}>›</button></div></header>
+    <div class="nutri">
+      <div class="anillo">${anilloSVG(t.kcal, o.kcal)}<div class="centro"><b>${n0(t.kcal)}</b><span>de ${n0(o.kcal)} kcal</span><span style="color:var(${quedan >= 0 ? "--bien" : "--mal"});font-weight:600">${quedan >= 0 ? "Quedan " + n0(quedan) : "Te pasas " + n0(-quedan)}</span></div></div>
+      <div class="macros">${macro("Proteínas", "prot", "--prot")}${macro("Hidratos", "hc", "--hc")}${macro("Grasas", "grasa", "--grasa")}${macro("Fibra", "fibra", "--fibra")}</div>
+    </div>
+    <div class="gasto" style="margin-top:16px">${hchip(n0(o.base), "kcal en reposo y actividad diaria")}${hchip(n0(o.ejer), "kcal de entrenos")}${o.ents.map(a => hchip(esc(a.name), "")).join("")}</div>
+    <p class="nota">Objetivo calculado con tu peso, altura, edad y los entrenos del día${S.ajustes.objetivo === "perder" ? " (−15 % para perder grasa)" : S.ajustes.objetivo === "ganar" ? " (+10 % para ganar masa)" : ""}. Cámbialos en Ajustes.</p>
+  </div>
+  <div class="rej c2">${COMIDAS.map(([k, nom]) => {
+    const L = items.filter(i => i.comida === k);
+    return `<div class="panel comida"><header><h4>${nom}</h4><span class="nota">${L.length ? n0(sumaN(L, "kcal")) + " kcal" : ""}</span></header>
+      ${L.map(i => `<div class="item"><div class="n"><b>${esc(i.nombre)}</b><span>${n0(i.gramos)} g · P ${n1(i.prot)} · HC ${n1(i.hc)} · G ${n1(i.grasa)}</span></div><span class="k">${n0(i.kcal)}</span><button class="borrar" type="button" data-borrar="${i.id}" aria-label="Quitar ${esc(i.nombre)}">✕</button></div>`).join("")}
+      <button class="btn" type="button" data-anadir="${k}">＋ Añadir</button></div>`;
+  }).join("")}</div>
+  <div class="panel"><header><h3>Últimos 14 días</h3><span class="nota">Lo que comes frente a tu objetivo</span></header><div class="graf"><canvas id="c-nutri"></canvas></div></div>`;
+  const ir = n => { S.comFecha = n; vComidas(); };
+  $("#cf-ant").addEventListener("click", () => ir(sumarDias(f, -1)));
+  $("#cf-sig").addEventListener("click", () => { if (f < hoyKey()) ir(sumarDias(f, 1)); });
+  $("#cf-hoy")?.addEventListener("click", () => ir(hoyKey()));
+  el.querySelectorAll("[data-borrar]").forEach(b => b.addEventListener("click", async () => { await api("/api/comidas/borrar", { method: "POST", body: JSON.stringify({ id: +b.dataset.borrar }) }); vComidas(); }));
+  el.querySelectorAll("[data-anadir]").forEach(b => b.addEventListener("click", () => abrirAnadir(b.dataset.anadir)));
+  // gráfica 14 días
+  const desde = sumarDias(hoyKey(), -13);
+  let R = []; try { R = await api(`/api/comidas/rango?desde=${desde}&hasta=${hoyKey()}`); } catch (_) { }
+  const dias = Array.from({ length: 14 }, (_, i) => sumarDias(desde, i));
+  baseChart();
+  grafica("c-nutri", {
+    data: { labels: dias.map(fFechaC), datasets: [
+      { type: "bar", label: "Comido (kcal)", data: dias.map(d => Math.round(sumaN(R.filter(e => e.fecha === d), "kcal"))), backgroundColor: rgba(tok("--accent"), .75), borderRadius: 6, yAxisID: "y" },
+      { type: "line", label: "Objetivo (kcal)", data: dias.map(d => Math.round(objetivosDia(d).kcal)), borderColor: tok("--glow"), borderDash: [5, 4], pointRadius: 0, borderWidth: 2, yAxisID: "y" },
+      { type: "line", label: "Proteína (g)", data: dias.map(d => Math.round(sumaN(R.filter(e => e.fecha === d), "prot"))), borderColor: tok("--prot"), backgroundColor: tok("--prot"), pointRadius: 3, borderWidth: 2, yAxisID: "y2" },
+    ] },
+    options: { interaction: { mode: "index", intersect: false }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 7 } }, y: { title: { display: true, text: "kcal" } }, y2: { position: "right", grid: { display: false }, title: { display: true, text: "g proteína" } } }, plugins: { legend: { position: "bottom" } } }
+  });
+}
+
+/* Hoja para añadir alimentos */
+function porGramos(a, g) {
+  const k = g / 100;
+  return { kcal: a.kcal * k, prot: a.prot * k, hc: a.hc * k, grasa: a.grasa * k, fibra: (a.fibra || 0) * k };
+}
+function deOFF(p) {
+  const n = p.nutriments || {};
+  const kcal = n["energy-kcal_100g"] ?? (n["energy_100g"] ? n["energy_100g"] / 4.184 : null);
+  if (kcal == null) return null;
+  return { id: "off" + p.code, nombre: [p.product_name_es || p.product_name, p.brands && p.brands.split(",")[0]].filter(Boolean).join(" · ") || "Producto " + p.code,
+    kcal: +kcal || 0, prot: +n.proteins_100g || 0, hc: +n.carbohydrates_100g || 0, grasa: +n.fat_100g || 0, fibra: +n.fiber_100g || 0,
+    racion_g: +p.serving_quantity || 100, racion: p.serving_size || "ración", fuente: "Open Food Facts" };
+}
+async function buscarOFF(q) {
+  const u = "https://world.openfoodfacts.org/cgi/search.pl?" + new URLSearchParams({ search_terms: q, search_simple: 1, action: "process", json: 1, page_size: 20, lc: "es", fields: "code,product_name,product_name_es,brands,nutriments,serving_quantity,serving_size" });
+  const r = await fetch(u); if (!r.ok) throw new Error("Open Food Facts no responde");
+  return ((await r.json()).products || []).map(deOFF).filter(Boolean);
+}
+async function productoOFF(code) {
+  const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=code,product_name,product_name_es,brands,nutriments,serving_quantity,serving_size`);
+  const j = await r.json(); if (!j.product) throw new Error("No encuentro ese código de barras");
+  const a = deOFF({ ...j.product, code }); if (!a) throw new Error("Ese producto no tiene datos nutricionales"); return a;
+}
+async function abrirAnadir(comida) {
+  const fecha = S.comFecha || hoyKey();
+  const hoja = document.createElement("div"); hoja.className = "hoja"; hoja.setAttribute("role", "dialog"); hoja.setAttribute("aria-modal", "true");
+  let recientes = []; try { recientes = await api("/api/comidas/recientes"); } catch (_) { }
+  hoja.innerHTML = `<div>
+    <header><h3>Añadir a ${COMIDAS.find(c => c[0] === comida)[1]}</h3><button class="borrar" type="button" id="h-cerrar" aria-label="Cerrar">✕</button></header>
+    <label class="campo"><span>Busca un alimento o producto</span><input id="h-q" type="search" placeholder="Ej.: plátano, pechuga de pollo, yogur…" autocomplete="off"></label>
+    <div class="chips-r">
+      <button class="chip-r" type="button" id="h-off">Buscar productos de marca</button>
+      <button class="chip-r" type="button" id="h-scan">Foto del código de barras</button>
+      <button class="chip-r" type="button" id="h-manual">Añadir a mano</button>
+    </div>
+    <input type="file" id="h-foto" accept="image/*" capture="environment" hidden>
+    <p class="nota" id="h-msg"></p>
+    ${recientes.length ? `<div><span class="nota">Recientes</span><div class="chips-r" style="margin-top:6px">${recientes.map((r, i) => `<button class="chip-r" type="button" data-rec="${i}">${esc(r.nombre)}</button>`).join("")}</div></div>` : ""}
+    <div class="resultados" id="h-res"></div>
+    <div id="h-det"></div>
+  </div>`;
+  document.body.appendChild(hoja);
+  const cerrar = () => hoja.remove();
+  hoja.addEventListener("click", e => { if (e.target === hoja) cerrar(); });
+  $("#h-cerrar", hoja).addEventListener("click", cerrar);
+  document.addEventListener("keydown", function k(e) { if (e.key === "Escape") { cerrar(); document.removeEventListener("keydown", k); } });
+  const msg = t => { $("#h-msg", hoja).textContent = t || ""; };
+  const lista = L => {
+    $("#h-res", hoja).innerHTML = L.slice(0, 30).map((a, i) => `<button class="resultado" type="button" data-i="${i}"><div><b>${esc(a.nombre)}</b><br><span>${n0(a.kcal)} kcal · P ${n1(a.prot)} · HC ${n1(a.hc)} · G ${n1(a.grasa)} por 100 g${a.fuente === "Open Food Facts" ? " · Open Food Facts" : ""}</span></div><span>›</span></button>`).join("") || `<p class="vacio">Sin resultados. Prueba «Buscar productos de marca» o «Añadir a mano».</p>`;
+    $("#h-res", hoja).querySelectorAll("[data-i]").forEach(b => b.addEventListener("click", () => detalle(L[+b.dataset.i])));
+  };
+  const buscarLocal = q => {
+    const t = sinAcentos(q).trim(); if (!t) { $("#h-res", hoja).innerHTML = ""; return; }
+    const palabras = t.split(/\s+/);
+    lista((window.ALIMENTOS || []).filter(a => palabras.every(w => sinAcentos(a.nombre).includes(w))));
+  };
+  const detalle = (a, gramosIni) => {
+    $("#h-res", hoja).innerHTML = "";
+    let g = gramosIni || a.racion_g || 100;
+    const pint = () => {
+      const v = porGramos(a, g);
+      $("#h-det", hoja).innerHTML = `<div class="panel" style="display:grid;gap:12px">
+        <b>${esc(a.nombre)}</b>
+        <div class="chips-r">${[[a.racion_g, `1 ${a.racion} (${n0(a.racion_g)} g)`], [a.racion_g * 2, `2 × ${a.racion}`], [100, "100 g"], [a.racion_g / 2, "½ " + a.racion]].map(([x, tx]) => `<button class="chip-r" type="button" data-g="${x}" aria-pressed="${Math.abs(x - g) < 0.5}">${esc(tx)}</button>`).join("")}</div>
+        <label class="campo"><span>Cantidad (g o ml)</span><input id="h-g" type="number" inputmode="decimal" min="0" step="any" value="${Math.round(g)}"></label>
+        <div class="preview">${[["kcal", v.kcal, "--accent"], ["prot", v.prot, "--prot"], ["hidr.", v.hc, "--hc"], ["grasa", v.grasa, "--grasa"], ["fibra", v.fibra, "--fibra"]].map(([et, x, c]) => `<div style="--c:var(${c})"><b>${et === "kcal" ? n0(x) : n1(x)}</b><span>${et}</span></div>`).join("")}</div>
+        <button class="btn prim" type="button" id="h-ok">Añadir ${n0(v.kcal)} kcal</button></div>`;
+      $("#h-det", hoja).querySelectorAll("[data-g]").forEach(b => b.addEventListener("click", () => { g = +b.dataset.g; pint(); }));
+      $("#h-g", hoja).addEventListener("change", e => { g = Math.max(0, +e.target.value || 0); pint(); });
+      $("#h-ok", hoja).addEventListener("click", async () => {
+        const v2 = porGramos(a, g);
+        await api("/api/comidas", { method: "POST", body: JSON.stringify({ fecha, comida, nombre: a.nombre, gramos: g, ...v2, ref: a }) });
+        cerrar(); vComidas();
+      });
+    };
+    pint();
+  };
+  let tmr; $("#h-q", hoja).addEventListener("input", e => { clearTimeout(tmr); $("#h-det", hoja).innerHTML = ""; tmr = setTimeout(() => buscarLocal(e.target.value), 120); });
+  $("#h-q", hoja).focus();
+  hoja.querySelectorAll("[data-rec]").forEach(b => b.addEventListener("click", () => { const r = recientes[+b.dataset.rec]; detalle(r.ref, r.gramos); }));
+  $("#h-off", hoja).addEventListener("click", async () => {
+    clearTimeout(tmr);
+    const q = $("#h-q", hoja).value.trim(); if (!q) { msg("Escribe primero qué producto buscas (marca o nombre)."); return; }
+    msg("Buscando en Open Food Facts…");
+    try { const L = await buscarOFF(q); msg(L.length ? "" : "No hay productos con ese nombre."); lista(L); } catch (e) { msg("No se pudo buscar: " + e.message); }
+  });
+  $("#h-scan", hoja).addEventListener("click", () => $("#h-foto", hoja).click());
+  $("#h-foto", hoja).addEventListener("change", async e => {
+    const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+    let code = null;
+    if ("BarcodeDetector" in window) {
+      msg("Leyendo el código de barras…");
+      try { const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] }); const r = await det.detect(await createImageBitmap(file)); code = r[0]?.rawValue; } catch (_) { }
+    }
+    if (!code) {
+      $("#h-det", hoja).innerHTML = `<div class="filtros"><label class="campo"><span>${"BarcodeDetector" in window ? "No he podido leerlo. Escribe los números del código" : "Escribe los números que hay bajo el código de barras"}</span><input id="h-code" inputmode="numeric"></label><button class="btn prim" type="button" id="h-code-ok">Buscar</button></div>`;
+      msg("");
+      $("#h-code-ok", hoja).addEventListener("click", async () => { try { msg("Buscando…"); detalle(await productoOFF($("#h-code", hoja).value.trim())); msg(""); } catch (err) { msg(err.message); } });
+      return;
+    }
+    try { msg("Buscando el producto " + code + "…"); detalle(await productoOFF(code)); msg(""); } catch (err) { msg(err.message); }
+  });
+  $("#h-manual", hoja).addEventListener("click", () => {
+    $("#h-res", hoja).innerHTML = "";
+    $("#h-det", hoja).innerHTML = `<div class="panel" style="display:grid;gap:10px">
+      <label class="campo"><span>Nombre</span><input id="m-n" value="${esc($("#h-q", hoja).value)}"></label>
+      <div class="lista-est">${[["m-k", "kcal"], ["m-p", "Proteínas (g)"], ["m-h", "Hidratos (g)"], ["m-g", "Grasas (g)"], ["m-f", "Fibra (g)"]].map(([id, et]) => `<label class="campo"><span>${et}</span><input id="${id}" type="number" inputmode="decimal" step="any" min="0"></label>`).join("")}</div>
+      <p class="nota">Pon los valores de lo que vas a comer en total (no por 100 g).</p>
+      <button class="btn prim" type="button" id="m-ok">Añadir</button></div>`;
+    $("#m-ok", hoja).addEventListener("click", async () => {
+      const v = id => +$("#" + id, hoja).value || 0;
+      if (!v("m-k")) { msg("Pon al menos las kcal."); return; }
+      await api("/api/comidas", { method: "POST", body: JSON.stringify({ fecha, comida, nombre: $("#m-n", hoja).value || "Comida", gramos: 0, kcal: v("m-k"), prot: v("m-p"), hc: v("m-h"), grasa: v("m-g"), fibra: v("m-f") }) });
+      cerrar(); vComidas();
+    });
+  });
+}
+
 /* ------------------------------------------------------------ AJUSTES */
 const CAMPOS_AJ = [
   ["ftp", "FTP ciclismo (W)", "number"], ["peso", "Peso (kg)", "number"], ["fc_max", "FC máxima (ppm)", "number"],
   ["fc_reposo", "FC en reposo (ppm)", "number"], ["lthr", "FC umbral láctico (ppm)", "number"],
   ["ritmo_umbral", "Ritmo umbral carrera (min:ss /km)", "text"], ["ftp_carrera", "Potencia umbral carrera (W, 0 = no usar)", "number"],
+  ["altura", "Altura (cm)", "number"], ["edad", "Edad (años)", "number"],
 ];
 function vAjustes() {
   const el = $("#v-ajustes"), aj = S.ajustes;
   const umbrales = `<div class="panel"><header><h3>Tus umbrales</h3>${MODO === "web" ? `<span class="nota">Se cambian en la app local</span>` : ""}</header>
     <form id="form-aj" class="lista-est" style="gap:14px 20px">
       ${CAMPOS_AJ.map(([k, t, ty]) => `<label class="campo"><span>${t}</span><input id="aj-${k}" name="${k}" type="${ty}" step="any" ${MODO === "web" ? "disabled" : ""} value="${k === "ritmo_umbral" ? fRitmo(aj[k]) : (aj[k] ?? "")}"></label>`).join("")}
+      <label class="campo"><span>Objetivo de peso</span><select id="aj-objetivo" name="objetivo" ${MODO === "web" ? "disabled" : ""}>${[["mantener", "Mantener"], ["perder", "Perder grasa"], ["ganar", "Ganar masa"]].map(([k, t]) => `<option value="${k}" ${(aj.objetivo || "mantener") === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       <label class="campo"><span>Sexo (para TRIMP)</span><select id="aj-sexo" name="sexo" ${MODO === "web" ? "disabled" : ""}><option value="H" ${aj.sexo !== "M" ? "selected" : ""}>Hombre</option><option value="M" ${aj.sexo === "M" ? "selected" : ""}>Mujer</option></select></label>
     </form>
     ${MODO === "local" ? `<div style="display:flex;gap:12px;align-items:center;margin-top:14px;flex-wrap:wrap"><button class="btn prim" id="b-aj" type="button">Guardar y recalcular</button><span class="nota" id="msg-aj">Al guardar se recalculan las métricas de todas tus actividades.</span></div>` : ""}
   </div>`;
   if (MODO === "local") {
-    el.innerHTML = `<div class="panel" id="p-conexion"></div><div class="panel" id="p-red"></div><div class="panel" id="p-plan"><p class="vacio">Cargando configuración del plan…</p></div>${umbrales}
+    el.innerHTML = `<div class="panel" id="p-conexion"></div><div class="panel" id="p-red"></div><div class="panel" id="p-instalar" hidden></div><div class="panel" id="p-plan"><p class="vacio">Cargando configuración del plan…</p></div>${umbrales}
     <div class="panel"><header><h3>Llevar al panel en Claude</h3></header>
       <p style="margin-top:0">Descarga un archivo con todas tus métricas e impórtalo en el panel publicado en Claude para consultarlo desde el móvil.</p>
       <div class="filtros"><label class="campo" style="max-width:260px"><span>Meses con gráficas y ruta detalladas</span><select id="exp-m"><option value="6">6 meses</option><option value="12">12 meses</option><option value="24" selected>24 meses</option><option value="60">5 años</option><option value="600">Todo</option></select></label>
@@ -2420,6 +2939,7 @@ function vAjustes() {
     $("#b-aj").addEventListener("click", guardarAjustes);
     pintarConexion();
     pintarRed();
+    pintarInstalar();
     pintarCfgPlan();
   } else {
     el.innerHTML = `<div class="panel"><header><h3>Tus datos</h3></header>
@@ -2491,6 +3011,31 @@ async function pintarRed() {
   $("#b-red-clave")?.addEventListener("click", () => { if ($("#red-clave").value.length < 6) msg("La contraseña debe tener al menos 6 caracteres."); else enviar(true); });
   $("#b-copiar")?.addEventListener("click", async () => { try { await navigator.clipboard.writeText(url); msg("Dirección copiada."); } catch (_) { msg("Selecciona la dirección y cópiala."); } });
 }
+const esStandalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const esIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function pintarInstalar() {
+  const p = $("#p-instalar"); if (!p || !window.API_LOCAL || location.protocol !== "https:") return;
+  p.hidden = false;
+  if (esStandalone()) { p.innerHTML = `<header><h3>App instalada</h3><span class="pill bien">Instalada</span></header><p style="margin:0">Estás usando la app instalada en este dispositivo.</p>`; return; }
+  p.innerHTML = `<header><h3>Instalar como app</h3></header>
+    ${window.__instalar ? `<p style="margin-top:0">Añade Cuaderno de Entrenos a tu pantalla de inicio: se abre como una app, a pantalla completa.</p><button class="btn prim" type="button" id="b-instalar">Instalar app</button>`
+    : esIOS() ? `<ol class="pasos"><li>Abre esta página en <b>Safari</b>.</li><li>Pulsa el botón <b>Compartir</b> (el cuadrado con la flecha hacia arriba).</li><li>Elige <b>«Añadir a pantalla de inicio»</b> y pulsa <b>Añadir</b>.</li></ol>`
+    : `<ol class="pasos"><li>Abre esta página en <b>Chrome</b>.</li><li>Pulsa el menú <b>⋮</b> (arriba a la derecha).</li><li>Elige <b>«Instalar aplicación»</b> o <b>«Añadir a pantalla de inicio»</b>.</li></ol>`}`;
+  $("#b-instalar")?.addEventListener("click", async () => { const ev = window.__instalar; window.__instalar = null; ev.prompt(); try { await ev.userChoice; } catch (_) { } pintarInstalar(); botonInstalarHero(); });
+}
+function botonInstalarHero() {
+  const top = document.querySelector(".hero-top"); if (!top) return;
+  let b = $("#hero-instalar");
+  if (!window.__instalar || esStandalone()) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement("button"); b.id = "hero-instalar"; b.type = "button"; b.className = "hchip instalar"; b.innerHTML = "<b>＋</b>Instalar app";
+    b.addEventListener("click", async () => { const ev = window.__instalar; if (!ev) return; window.__instalar = null; ev.prompt(); try { await ev.userChoice; } catch (_) { } botonInstalarHero(); pintarInstalar(); });
+    top.appendChild(b);
+  }
+}
+document.addEventListener("instalable", () => { botonInstalarHero(); pintarInstalar(); });
+if (window.__instalar) setTimeout(botonInstalarHero, 0);
+
 function pintarConexion() {
   const p = $("#p-conexion"); if (!p) return;
   const e = S.estado;
@@ -2499,6 +3044,7 @@ function pintarConexion() {
     if (p.dataset.paso === "1") return;
     p.dataset.paso = "1";
     p.innerHTML = `<header><h3>Paso 1 · Crea tu aplicación de API en Strava</h3></header>
+      ${e.red?.navegador ? `<p class="nota" style="margin-top:0">Cada persona usa la app con <b>su propia cuenta y su propia aplicación de Strava</b>: lo que configuras aquí y tus actividades se guardan solo en este dispositivo, nadie más los ve.</p>` : ""}
       <ol class="pasos">
         <li>Entra en <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">strava.com/settings/api</a> con tu cuenta.</li>
         <li>Rellena: <b>Nombre</b> «Cuaderno de Entrenos», <b>Categoría</b> «Training», <b>Sitio web</b> <code>${esc(e.sitio || "http://localhost")}</code> y <b>Dominio de devolución de llamada</b> <code>${esc(e.dominio || "localhost")}</code>. Sube cualquier imagen como icono.</li>
@@ -2546,7 +3092,7 @@ function pintarConexion() {
       <button class="btn" data-acc="parar" type="button" ${s.activo ? "" : "disabled"}>Parar</button>
     </div>
     <div class="auto-sync">
-      <div><b>Sincronización automática</b><span class="nota">Cada ${e.auto.intervalo_min} min, en segundo plano${e.auto.proxima ? ` · próxima a las ${fechaD(e.auto.proxima).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : ""}. Las actividades nuevas de Strava aparecen solas y el plan se reajusta.</span></div>
+      <div><b>Sincronización automática</b><span class="nota">${e.red?.navegador ? "Se pone al día sola cada vez que abres la app o vuelves a ella, y cada " + e.auto.intervalo_min + " min mientras está abierta." : `Cada ${e.auto.intervalo_min} min, en segundo plano`}${e.auto.proxima ? ` · próxima a las ${fechaD(e.auto.proxima).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : ""}. Las actividades nuevas de Strava aparecen solas y el plan se reajusta.</span></div>
       ${e.auto.arranque_soportado && e.red?.es_local ? `<label class="interruptor"><input type="checkbox" id="chk-auto" ${e.auto.arranque_activo ? "checked" : ""}><span>Arrancar con Windows</span></label>` : `<span class="nota">Arranque automático disponible solo en Windows.</span>`}
     </div>
     <p class="nota">Con «Arrancar con Windows» la app se abre sola, sin ventanas, al encender el PC y recoge lo que hayas subido a Strava mientras estaba apagado. Strava permite unas 100 peticiones cada 15 min y 1000 al día: la primera descarga de un historial largo puede tardar horas.</p>
@@ -2571,6 +3117,7 @@ async function guardarAjustes() {
   const d = {};
   CAMPOS_AJ.forEach(([k]) => { d[k] = $("#aj-" + k).value; });
   d.sexo = $("#aj-sexo").value;
+  if ($("#aj-objetivo")) d.objetivo = $("#aj-objetivo").value;
   const rm = String(d.ritmo_umbral).match(/^(\d+):(\d{1,2})$/);
   d.ritmo_umbral = rm ? (+rm[1]) * 60 + (+rm[2]) : +d.ritmo_umbral;
   if (!d.ritmo_umbral) { $("#msg-aj").textContent = "Escribe el ritmo umbral como min:ss, por ejemplo 4:30."; return; }
@@ -2581,6 +3128,7 @@ async function guardarAjustes() {
 $("#f-import").addEventListener("change", e => { const f = e.target.files[0]; if (f) importar(f); e.target.value = ""; });
 
 /* ------------------------------------------------------------ inicio */
+if (window.API_LOCAL) $("#tab-comidas").hidden = false;
 dibujarTopo();
 mostrar();
 if (MODO === "local") cargarLocal(); else cargarWeb();
