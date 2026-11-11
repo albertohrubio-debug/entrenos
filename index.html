@@ -1112,6 +1112,14 @@ async function rutear(ruta, opt = {}) {
   }
   if (p === "/api/comidas/borrar") { await tx("comidas", "readwrite", s => s.delete(+body.id)); return { ok: true }; }
   if (p === "/api/comidas/recientes") return kvGet("comida_recientes", []);
+  if (p === "/api/ia" && !post) { const c = await kvGet("ia", {}); return { proveedor: c.proveedor || "gemini", configurado: !!c.clave }; }
+  if (p === "/api/ia" && post) {
+    const c = await kvGet("ia", {});
+    if (body.proveedor) c.proveedor = body.proveedor;
+    if (body.clave !== undefined) c.clave = String(body.clave || "").trim();
+    await kvPut("ia", c); return { ok: true };
+  }
+  if (p === "/api/ia/clave") return kvGet("ia", {});
   if (p === "/api/comidas/rango") {
     const desde = q.get("desde"), hasta = q.get("hasta");
     return tx("comidas", "readonly", s => s.index("fecha").getAll(IDBKeyRange.bound(desde, hasta)));
@@ -1428,6 +1436,18 @@ nav.tabs a[aria-current="page"]{color:#fff;background:linear-gradient(135deg,var
 .aviso{border-radius:16px;border-style:solid;border-color:color-mix(in srgb,var(--aviso) 50%,transparent);background:linear-gradient(135deg,color-mix(in srgb,var(--aviso) 14%,var(--surface)),var(--glass))}
 
 /* ===== Comidas ===== */
+.foto-ia{padding:14px;font-size:1.05rem}
+.ia-cargando{display:grid;gap:10px;justify-items:center;text-align:center}
+.ia-cargando img{max-height:220px;border-radius:14px;object-fit:cover}
+.ia-cargando span{font-weight:600;color:var(--accent);animation:lat 1.2s infinite}
+@media (prefers-reduced-motion: reduce){.ia-cargando span{animation:none}}
+.ia-cab{display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center}
+.ia-cab img{width:72px;height:72px;object-fit:cover;border-radius:12px}
+.ia-item{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--surface-2);cursor:pointer}
+.ia-item .n{min-width:0}.ia-item .n b{display:block;overflow-wrap:anywhere}.ia-item .n span{font-size:.78rem;color:var(--muted)}
+.ia-item .g{display:flex;align-items:center;gap:4px;color:var(--muted)}
+.ia-item .g input{width:72px;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--surface);text-align:right}
+.ia-item input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .nutri{display:grid;grid-template-columns:minmax(200px,260px) 1fr;gap:24px;align-items:center}
 @media (max-width:640px){.nutri{grid-template-columns:1fr}}
 .anillo{position:relative;width:100%;max-width:240px;aspect-ratio:1;margin:0 auto}
@@ -2741,7 +2761,7 @@ function anilloSVG(v, obj) {
   const r = 52, c = 2 * Math.PI * r, f = Math.min(1, obj ? v / obj : 0), pasa = obj && v > obj * 1.05;
   return `<svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="gradk" x1="0" x2="1"><stop offset="0" stop-color="${tok("--accent")}"/><stop offset="1" stop-color="${tok(pasa ? "--mal" : "--glow")}"/></linearGradient></defs>
     <circle cx="60" cy="60" r="${r}" fill="none" stroke="${tok("--surface-2")}" stroke-width="12"/>
-    <circle cx="60" cy="60" r="${r}" fill="none" stroke="url(#gradk)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+    ${f > 0 ? `<circle cx="60" cy="60" r="${r}" fill="none" stroke="url(#gradk)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}"/>` : ""}</svg>`;
 }
 async function vComidas() {
   const el = $("#v-comidas");
@@ -2823,6 +2843,8 @@ async function abrirAnadir(comida) {
   hoja.innerHTML = `<div>
     <header><h3>Añadir a ${COMIDAS.find(c => c[0] === comida)[1]}</h3><button class="borrar" type="button" id="h-cerrar" aria-label="Cerrar">✕</button></header>
     <label class="campo"><span>Busca un alimento o producto</span><input id="h-q" type="search" placeholder="Ej.: plátano, pechuga de pollo, yogur…" autocomplete="off"></label>
+    <button class="btn prim foto-ia" type="button" id="h-ia">Foto del plato: calcula todo solo</button>
+    <input type="file" id="h-ia-foto" accept="image/*" capture="environment" hidden>
     <div class="chips-r">
       <button class="chip-r" type="button" id="h-off">Buscar productos de marca</button>
       <button class="chip-r" type="button" id="h-scan">Foto del código de barras</button>
@@ -2861,7 +2883,7 @@ async function abrirAnadir(comida) {
         <div class="preview">${[["kcal", v.kcal, "--accent"], ["prot", v.prot, "--prot"], ["hidr.", v.hc, "--hc"], ["grasa", v.grasa, "--grasa"], ["fibra", v.fibra, "--fibra"]].map(([et, x, c]) => `<div style="--c:var(${c})"><b>${et === "kcal" ? n0(x) : n1(x)}</b><span>${et}</span></div>`).join("")}</div>
         <button class="btn prim" type="button" id="h-ok">Añadir ${n0(v.kcal)} kcal</button></div>`;
       $("#h-det", hoja).querySelectorAll("[data-g]").forEach(b => b.addEventListener("click", () => { g = +b.dataset.g; pint(); }));
-      $("#h-g", hoja).addEventListener("change", e => { g = Math.max(0, +e.target.value || 0); pint(); });
+      $("#h-g", hoja).addEventListener("change", e => { g = Math.max(0, +e.target.value || 0); setTimeout(pint, 0); });
       $("#h-ok", hoja).addEventListener("click", async () => {
         const v2 = porGramos(a, g);
         await api("/api/comidas", { method: "POST", body: JSON.stringify({ fecha, comida, nombre: a.nombre, gramos: g, ...v2, ref: a }) });
@@ -2880,6 +2902,53 @@ async function abrirAnadir(comida) {
     try { const L = await buscarOFF(q); msg(L.length ? "" : "No hay productos con ese nombre."); lista(L); } catch (e) { msg("No se pudo buscar: " + e.message); }
   });
   $("#h-scan", hoja).addEventListener("click", () => $("#h-foto", hoja).click());
+  $("#h-ia", hoja).addEventListener("click", async () => {
+    const st = await api("/api/ia");
+    if (!st.configurado) {
+      $("#h-res", hoja).innerHTML = ""; msg("");
+      $("#h-det", hoja).innerHTML = `<div class="panel" style="display:grid;gap:8px"><b>Falta activar el reconocimiento por foto</b><p class="nota" style="margin:0">Ve a <b>Ajustes › Reconocer comida por foto</b> y pega tu clave (se crea gratis con tu cuenta de Google en 2 minutos). Solo hay que hacerlo una vez en cada móvil.</p><a class="btn" href="#ajustes">Ir a Ajustes</a></div>`;
+      $("#h-det a", hoja).addEventListener("click", cerrar);
+      return;
+    }
+    $("#h-ia-foto", hoja).click();
+  });
+  $("#h-ia-foto", hoja).addEventListener("change", async e => {
+    const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+    $("#h-res", hoja).innerHTML = "";
+    const url = URL.createObjectURL(file);
+    $("#h-det", hoja).innerHTML = `<div class="panel ia-cargando"><img src="${url}" alt="Foto de la comida"><span>Analizando la foto…</span></div>`;
+    msg("");
+    try {
+      const r = await analizarFoto(file);
+      mostrarIA(r, url);
+    } catch (err) {
+      $("#h-det", hoja).innerHTML = `<div class="panel"><b>No se pudo analizar la foto</b><p class="nota">${esc(err.message)}</p></div>`;
+    }
+  });
+  const mostrarIA = (r, url) => {
+    const L = (r.alimentos || []).map(a => ({ ...a, g0: +a.gramos || 0, on: true }));
+    if (!L.length) { $("#h-det", hoja).innerHTML = `<div class="panel"><b>No he reconocido comida en la foto.</b><p class="nota">Prueba con una foto desde arriba, con buena luz y el plato completo.</p></div>`; return; }
+    const tot = () => L.filter(a => a.on).reduce((t, a) => { const k = a.g0 ? (+a.gramos || 0) / a.g0 : 1; for (const m of ["kcal", "prot", "hc", "grasa", "fibra"]) t[m] += (+a[m] || 0) * k; return t; }, { kcal: 0, prot: 0, hc: 0, grasa: 0, fibra: 0 });
+    const pint = () => {
+      const t = tot();
+      $("#h-det", hoja).innerHTML = `<div class="panel" style="display:grid;gap:12px">
+        <div class="ia-cab"><img src="${url}" alt="Foto analizada"><div><b>${esc(r.plato || "Tu comida")}</b>${r.nota ? `<p class="nota" style="margin:4px 0 0">${esc(r.nota)}</p>` : ""}</div></div>
+        ${L.map((a, i) => `<label class="ia-item"><input type="checkbox" data-on="${i}" ${a.on ? "checked" : ""}><span class="n"><b>${esc(a.nombre)}</b><span>${n0((+a.kcal || 0) * (a.g0 ? (+a.gramos || 0) / a.g0 : 1))} kcal · P ${n1((+a.prot || 0) * (a.g0 ? a.gramos / a.g0 : 1))} g</span></span><span class="g"><input type="number" inputmode="decimal" min="0" step="5" value="${Math.round(+a.gramos || 0)}" data-g="${i}" aria-label="Gramos de ${esc(a.nombre)}"> g</span></label>`).join("")}
+        <div class="preview">${[["kcal", t.kcal, "--accent"], ["prot", t.prot, "--prot"], ["hidr.", t.hc, "--hc"], ["grasa", t.grasa, "--grasa"], ["fibra", t.fibra, "--fibra"]].map(([et, x, c]) => `<div style="--c:var(${c})"><b>${et === "kcal" ? n0(x) : n1(x)}</b><span>${et}</span></div>`).join("")}</div>
+        <p class="nota" style="margin:0">Cantidades estimadas a ojo por la foto. Si sabes los gramos, corrígelos y se recalcula.</p>
+        <button class="btn prim" type="button" id="ia-ok">Añadir ${n0(t.kcal)} kcal</button></div>`;
+      $("#h-det", hoja).querySelectorAll("[data-on]").forEach(c => c.addEventListener("change", () => { L[+c.dataset.on].on = c.checked; pint(); }));
+      $("#h-det", hoja).querySelectorAll("[data-g]").forEach(c => c.addEventListener("change", () => { L[+c.dataset.g].gramos = Math.max(0, +c.value || 0); setTimeout(pint, 0); }));
+      $("#ia-ok", hoja).addEventListener("click", async () => {
+        for (const a of L.filter(x => x.on)) {
+          const k = a.g0 ? (+a.gramos || 0) / a.g0 : 1;
+          await api("/api/comidas", { method: "POST", body: JSON.stringify({ fecha, comida, nombre: a.nombre, gramos: +a.gramos || 0, kcal: (+a.kcal || 0) * k, prot: (+a.prot || 0) * k, hc: (+a.hc || 0) * k, grasa: (+a.grasa || 0) * k, fibra: (+a.fibra || 0) * k }) });
+        }
+        cerrar(); vComidas();
+      });
+    };
+    pint();
+  };
   $("#h-foto", hoja).addEventListener("change", async e => {
     const file = e.target.files[0]; e.target.value = ""; if (!file) return;
     let code = null;
@@ -2929,7 +2998,7 @@ function vAjustes() {
     ${MODO === "local" ? `<div style="display:flex;gap:12px;align-items:center;margin-top:14px;flex-wrap:wrap"><button class="btn prim" id="b-aj" type="button">Guardar y recalcular</button><span class="nota" id="msg-aj">Al guardar se recalculan las métricas de todas tus actividades.</span></div>` : ""}
   </div>`;
   if (MODO === "local") {
-    el.innerHTML = `<div class="panel" id="p-conexion"></div><div class="panel" id="p-red"></div><div class="panel" id="p-instalar" hidden></div><div class="panel" id="p-plan"><p class="vacio">Cargando configuración del plan…</p></div>${umbrales}
+    el.innerHTML = `<div class="panel" id="p-conexion"></div><div class="panel" id="p-red"></div><div class="panel" id="p-instalar" hidden></div><div class="panel" id="p-ia" hidden></div><div class="panel" id="p-plan"><p class="vacio">Cargando configuración del plan…</p></div>${umbrales}
     <div class="panel"><header><h3>Llevar al panel en Claude</h3></header>
       <p style="margin-top:0">Descarga un archivo con todas tus métricas e impórtalo en el panel publicado en Claude para consultarlo desde el móvil.</p>
       <div class="filtros"><label class="campo" style="max-width:260px"><span>Meses con gráficas y ruta detalladas</span><select id="exp-m"><option value="6">6 meses</option><option value="12">12 meses</option><option value="24" selected>24 meses</option><option value="60">5 años</option><option value="600">Todo</option></select></label>
@@ -2940,6 +3009,7 @@ function vAjustes() {
     pintarConexion();
     pintarRed();
     pintarInstalar();
+    pintarIA();
     pintarCfgPlan();
   } else {
     el.innerHTML = `<div class="panel"><header><h3>Tus datos</h3></header>
@@ -3035,6 +3105,92 @@ function botonInstalarHero() {
 }
 document.addEventListener("instalable", () => { botonInstalarHero(); pintarInstalar(); });
 if (window.__instalar) setTimeout(botonInstalarHero, 0);
+
+/* ------------------------------------------------------------ RECONOCIMIENTO DE COMIDA POR FOTO */
+const PROMPT_COMIDA = `Eres un nutricionista. Analiza la foto de comida y estima, para cada alimento visible, la cantidad en gramos (porción comestible) y sus nutrientes PARA ESA CANTIDAD. Usa raciones típicas españolas y las referencias de tamaño de la foto (plato, cubiertos, manos). Si la foto es una etiqueta nutricional o un envase, usa sus datos.
+Responde SOLO con JSON válido, sin texto adicional, con esta forma:
+{"plato":"nombre corto del plato en español","nota":"una frase breve sobre la estimación","alimentos":[{"nombre":"alimento en español","gramos":0,"kcal":0,"prot":0,"hc":0,"grasa":0,"fibra":0}]}
+Números sin unidades. Si no hay comida en la foto, devuelve "alimentos":[].`;
+async function reducirFoto(file, max = 1024) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+  cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+  const blob = await new Promise(ok => cv.toBlob(ok, "image/jpeg", 0.82));
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function jsonDeTexto(t) {
+  const i = t.indexOf("{"), j = t.lastIndexOf("}");
+  if (i < 0 || j < i) throw new Error("La respuesta no tiene el formato esperado.");
+  return JSON.parse(t.slice(i, j + 1));
+}
+async function llamarGemini(clave, b64, prompt) {
+  let ultimo = "";
+  for (const modelo of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(clave)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: b64 } }] }], generationConfig: { temperature: 0.2, response_mime_type: "application/json" } }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) return (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
+    ultimo = j.error?.message || ("error " + r.status);
+    if (r.status === 400 && /API key/i.test(ultimo)) throw new Error("La clave de Google no es válida. Revísala en Ajustes.");
+    if (r.status === 429) throw new Error("Has llegado al límite gratuito de Google por ahora. Prueba dentro de un rato.");
+    if (r.status !== 404) break;
+  }
+  throw new Error("Google respondió: " + ultimo);
+}
+async function llamarClaude(clave, b64, prompt) {
+  let ultimo = "";
+  for (const modelo of ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-3-5-haiku-latest"]) {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": clave, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: modelo, max_tokens: 1200, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: prompt }] }] }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) return (j.content || []).map(c => c.text || "").join("");
+    ultimo = j.error?.message || ("error " + r.status);
+    if (r.status === 401) throw new Error("La clave de Anthropic no es válida. Revísala en Ajustes.");
+    if (r.status !== 404 && !/model/i.test(ultimo)) break;
+  }
+  throw new Error("Anthropic respondió: " + ultimo);
+}
+async function analizarFoto(file) {
+  const c = await api("/api/ia/clave");
+  if (!c.clave) throw new Error("Falta la clave en Ajustes.");
+  const b64 = await reducirFoto(file);
+  const txt = c.proveedor === "claude" ? await llamarClaude(c.clave, b64, PROMPT_COMIDA) : await llamarGemini(c.clave, b64, PROMPT_COMIDA);
+  return jsonDeTexto(txt);
+}
+async function pintarIA() {
+  const p = $("#p-ia"); if (!p || !window.API_LOCAL) return;
+  p.hidden = false;
+  const st = await api("/api/ia");
+  p.innerHTML = `<header><h3>Reconocer comida por foto</h3>${st.configurado ? `<span class="pill bien">Activado</span>` : `<span class="pill neutro">Sin activar</span>`}</header>
+    <p style="margin-top:0">Haces una foto al plato y se calculan solos los alimentos, los gramos, las calorías y los macros. Para eso hace falta una clave de un servicio de inteligencia artificial. Se guarda solo en este móvil.</p>
+    <div class="seg" id="ia-prov" role="group"><button type="button" data-v="gemini" aria-pressed="${st.proveedor !== "claude"}">Google Gemini (gratis)</button><button type="button" data-v="claude" aria-pressed="${st.proveedor === "claude"}">Claude (de pago)</button></div>
+    <div id="ia-pasos" style="margin-top:12px"></div>
+    <div class="filtros" style="margin-top:12px"><label class="campo" style="max-width:380px"><span>${st.configurado ? "Clave guardada. Pega otra para cambiarla" : "Pega aquí tu clave"}</span><input id="ia-clave" type="password" autocomplete="off" spellcheck="false"></label><button class="btn prim" type="button" id="ia-guardar">Guardar</button>${st.configurado ? `<button class="btn" type="button" id="ia-quitar">Quitar clave</button>` : ""}</div>
+    <p class="nota" id="ia-msg"></p>`;
+  let prov = st.proveedor || "gemini";
+  const pasos = () => {
+    $("#ia-pasos").innerHTML = prov === "claude"
+      ? `<ol class="pasos"><li>Entra en <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> y crea una cuenta.</li><li>Añade saldo en <b>Billing</b> (mínimo unos 5 $; cada foto cuesta en torno a 1 céntimo).</li><li>En <b>API Keys</b> pulsa <b>Create Key</b>, cópiala y pégala abajo.</li></ol>`
+      : `<ol class="pasos"><li>Entra en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> con tu cuenta de Google.</li><li>Pulsa <b>«Create API key»</b> (o «Crear clave de API») y cópiala.</li><li>Pégala abajo y pulsa Guardar. Es gratis, con un límite de usos al día de sobra para registrar tus comidas. Google puede usar las fotos para mejorar sus servicios.</li></ol>`;
+  };
+  pasos();
+  onSeg("ia-prov", async v => { prov = v; pasos(); await api("/api/ia", { method: "POST", body: JSON.stringify({ proveedor: v }) }); });
+  $("#ia-guardar").addEventListener("click", async () => {
+    const k = $("#ia-clave").value.trim();
+    if (k.length < 20) { $("#ia-msg").textContent = "Esa clave parece incompleta. Cópiala entera."; return; }
+    await api("/api/ia", { method: "POST", body: JSON.stringify({ proveedor: prov, clave: k }) });
+    $("#ia-msg").textContent = "Guardada."; pintarIA();
+  });
+  $("#ia-quitar")?.addEventListener("click", async () => { await api("/api/ia", { method: "POST", body: JSON.stringify({ clave: "" }) }); pintarIA(); });
+}
 
 function pintarConexion() {
   const p = $("#p-conexion"); if (!p) return;
